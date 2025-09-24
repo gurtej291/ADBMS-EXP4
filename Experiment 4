@@ -1,0 +1,194 @@
+PRACTICE 1
+-- ======================================================
+-- Setup: Drop table if it exists and create fresh table
+-- ======================================================
+DROP TABLE IF EXISTS FeePayments;
+
+CREATE TABLE FeePayments (
+    payment_id INT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    amount DECIMAL(10,2),
+    payment_date DATE NOT NULL
+);
+
+-- ======================================================
+-- Part A: Insert Multiple Fee Payments (Commit success)
+-- ======================================================
+START TRANSACTION;
+
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (1, 'Ashish', 5000.00, '2024-06-01');
+
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (2, 'Smaran', 4500.00, '2024-06-02');
+
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (3, 'Vaibhav', 5500.00, '2024-06-03');
+
+COMMIT;
+
+SELECT 'After Part A' AS status, payment_id, student_name, amount, payment_date
+FROM FeePayments;
+
+
+-- ======================================================
+-- Part B: ROLLBACK on Failure (Duplicate ID)
+-- ======================================================
+START TRANSACTION;
+
+-- Valid insert
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (4, 'Kiran', 6000.00, '2024-06-04');
+
+ROLLBACK;
+
+SELECT 'After Part B' AS status, payment_id, student_name, amount, payment_date
+FROM FeePayments;
+
+
+-- ======================================================
+-- Part C: Partial Failure Simulation (NULL student_name)
+-- ======================================================
+START TRANSACTION;
+
+-- Valid insert
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (5, 'Rohan', 7000.00, '2024-06-06');
+
+ROLLBACK;
+
+SELECT 'After Part C' AS status, payment_id, student_name, amount, payment_date
+FROM FeePayments;
+
+
+-- ======================================================
+-- Part D: Verify ACID Properties
+-- ======================================================
+START TRANSACTION;
+
+-- Valid insert
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (7, 'Meena', 8000.00, '2024-06-08');
+
+ROLLBACK;
+
+-- Final valid transaction
+START TRANSACTION;
+INSERT INTO FeePayments (payment_id, student_name, amount, payment_date)
+VALUES (8, 'Kavita', 7500.00, '2024-06-10');
+COMMIT;
+
+-- Final check
+SELECT 'Final Table' AS status, payment_id, student_name, amount, payment_date
+FROM FeePayments
+ORDER BY payment_id;
+
+
+PRACTICE 2
+
+-- ======================================================
+-- Setup: Create StudentEnrollments Table
+-- ======================================================
+DROP TABLE IF EXISTS StudentEnrollments;
+
+CREATE TABLE StudentEnrollments (
+    enrollment_id INT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    course_id VARCHAR(10) NOT NULL,
+    enrollment_date DATE NOT NULL,
+    CONSTRAINT unique_enrollment UNIQUE (student_name, course_id)
+);
+
+-- Insert initial data
+INSERT INTO StudentEnrollments (enrollment_id, student_name, course_id, enrollment_date)
+VALUES
+(1, 'Ashish', 'CSE101', '2024-07-01'),
+(2, 'Smaran', 'CSE102', '2024-07-01'),
+(3, 'Vaibhav', 'CSE101', '2024-07-01');
+
+SELECT * FROM StudentEnrollments;
+
+START TRANSACTION;
+INSERT INTO StudentEnrollments (enrollment_id, student_name, course_id, enrollment_date)
+VALUES (4, 'Ashish', 'CSE103', '2024-07-02');  -- ✅ valid, no duplicate
+COMMIT;
+
+SELECT * FROM StudentEnrollments;
+
+START TRANSACTION;
+SELECT * FROM StudentEnrollments
+WHERE student_name = 'Ashish' AND course_id = 'CSE101'
+FOR UPDATE;
+
+COMMIT;
+
+START TRANSACTION;
+SELECT * FROM StudentEnrollments
+WHERE student_name = 'Ashish' AND course_id = 'CSE101'
+FOR UPDATE;
+
+UPDATE StudentEnrollments
+SET enrollment_date = '2024-07-20'
+WHERE student_name = 'Ashish' AND course_id = 'CSE101';
+
+COMMIT;
+
+SELECT * FROM StudentEnrollments;
+
+
+PRACTICE 3
+
+-- ======================================================
+-- Setup: Create StudentEnrollments Table
+-- ======================================================
+DROP TABLE IF EXISTS StudentEnrollments;
+
+CREATE TABLE StudentEnrollments (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    course_id VARCHAR(10) NOT NULL,
+    enrollment_date DATE NOT NULL
+) ENGINE=InnoDB;
+
+-- Insert initial data
+INSERT INTO StudentEnrollments (student_id, student_name, course_id, enrollment_date)
+VALUES
+(1, 'Ashish', 'CSE101', '2024-06-01'),
+(2, 'Smaran', 'CSE102', '2024-06-01'),
+(3, 'Vaibhav', 'CSE103', '2024-06-01');
+
+SELECT * FROM StudentEnrollments;
+
+-- Session A:
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION;
+SELECT * FROM StudentEnrollments WHERE student_id=1; -- sees enrollment_date=2024-06-01
+
+-- Session B:
+START TRANSACTION;
+UPDATE StudentEnrollments SET enrollment_date='2024-07-10' WHERE student_id=1;
+COMMIT;
+
+-- Back in Session A:
+SELECT * FROM StudentEnrollments WHERE student_id=1; -- still sees old value 2024-06-01 due to MVCC
+COMMIT; -- now sees updated value
+
+
+-- Session A:
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION;
+SELECT * FROM StudentEnrollments WHERE student_id=1; -- sees snapshot
+
+-- Session B:
+START TRANSACTION;
+UPDATE StudentEnrollments SET enrollment_date='2024-07-25' WHERE student_id=1;
+COMMIT;
+
+-- Session A still sees old snapshot:
+SELECT * FROM StudentEnrollments WHERE student_id=1;
+COMMIT;
+
+-- ======================================================
+-- Final Table Check
+-- ======================================================
+SELECT * FROM StudentEnrollments;
